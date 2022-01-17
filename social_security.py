@@ -138,24 +138,12 @@ AdjustedEarnings = {}
 for i in range(EarningsRecord_FirstYear, EarningsRecord_LastYear + 1) :
     AdjustedEarnings[i] = EarningsRecord[i] * AWI_Factors[i]
 
-# Auxiliary helper function that will return the key of a dictionary that
-# corresponds to the maximum value in the dictionary. This will be used when
-# calculating the top 35 years of earnings history.
-def KeyWithMaxVal(d):
-    v = list(d.values())
-    k = list(d.keys())
-    return k[v.index(max(v))]
+MissingEarningYears = list(str(k) for k, v in EarningsRecord.items() if not v)
+TotalAllEarnings = sum(EarningsRecord.values())
+TotalAdjustedEarnings = sum(AdjustedEarnings.values())
 
-# Variable to hold the accumulation of the top 35 years of adjusted annual
-# earnings
-Top35YearsEarnings = 0.0;
-
-# Accumulate the top 35 years of adjusted earnings
-for i in range(0, 35):
-    if AdjustedEarnings:
-        top_year = KeyWithMaxVal(AdjustedEarnings)
-        Top35YearsEarnings += AdjustedEarnings[top_year]
-        del AdjustedEarnings[top_year]
+# Top 35 years of adjusted annual earnings
+Top35YearsEarnings = sum(sorted(AdjustedEarnings.values())[-35:])
 
 # Calculate the Average Indexed Monthly earnings (AIME) by dividing the Top 35
 # years of earnings by the number of months in 35 years (35 * 12 = 420)
@@ -164,7 +152,6 @@ AIME = Top35YearsEarnings / 420.0
 # Calculate the Social Security "Bend Points" for the Primary Insurance Amount
 # (PIA) as defined by:
 # https://www.ssa.gov/oact/cola/piaformula.html
-#
 FirstBendPoint = round(180.0 * NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] / 9779.44)
 SecondBendPoint = round(1085.0 * NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] / 9779.44)
 
@@ -190,8 +177,13 @@ NormalMonthlyBenefit = (floor(NormalMonthlyBenefit * 10.0)) / 10.0
 ReducedMonthlyBenefit = 0.7 * NormalMonthlyBenefit
 ReducedMonthlyBenefit = (floor(ReducedMonthlyBenefit * 10.0)) / 10.0
 
+
 # Print the results
-print("Earnings record years analyzed ____________{:8d}".format(len(EarningsRecord)))
+print("Earnings record years analyzed ____________ {}".format(len(EarningsRecord)))
+print("Earning Years with 0 Earnings _____________ {}".format(', '.join(MissingEarningYears)))
+print("Total Actual Earnings in all Years ________{:11.2f}".format(TotalAllEarnings))
+print("Total Adjusted Earnings in all Years ______{:11.2f}".format(TotalAdjustedEarnings))
+print("Discarded Adjusted Earnings _______________{:11.2f}".format(TotalAdjustedEarnings - Top35YearsEarnings))
 print("Top 35 Years of Adjusted Earnings _________{:11.2f}".format(Top35YearsEarnings))
 print("Average Indexed Monthly Earnings (AIME) ___{:11.2f}".format(AIME))
 print("First Bend Point __________________________{:11.2f}".format(FirstBendPoint))
@@ -200,5 +192,3 @@ print("Normal Monthly Benefit ____________________{:11.2f}".format(NormalMonthly
 print("Normal Annual Benefit _____________________{:11.2f}".format(NormalMonthlyBenefit * 12.0))
 print("Reduced (70%) Monthly Benefit _____________{:11.2f}".format(ReducedMonthlyBenefit))
 print("Reduced (70%) Annual Benefit ______________{:11.2f}".format(ReducedMonthlyBenefit * 12.0))
-
-
