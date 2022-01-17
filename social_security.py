@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #
 # This Python script will calculate your expected retirement benefits
 # from Social Security given your annual earnings. This script does
@@ -6,6 +7,7 @@
 #
 # Inputs:
 #           1) EarningsRecord -
+#               Will attempt to read file: Your_Social_Security_Statement_Data.xml
 #               Dictionary mapping a year to the amount of Social
 #               Security eligible earnings in that particular year
 #
@@ -22,6 +24,7 @@
 from datetime import datetime
 from math import floor
 import xml.etree.ElementTree as et
+import sys
 
 # Earnings history by year.
 # You can find out the information by logging into "my Social Security" at
@@ -30,6 +33,11 @@ import xml.etree.ElementTree as et
 # https://secure.ssa.gov/OSSS/er/er001View.do
 # Add 2016 - 2019 earning data from https://www.ssa.gov/oact/cola/AWI.html#Series
 
+try:
+    from earnings import EarningsRecord
+except ImportError:
+    EarningsRecord = {}
+""" in earnings.py, format like:
 EarningsRecord = {
     1998 :      0.0,
     1999 :      0.0,
@@ -52,17 +60,8 @@ EarningsRecord = {
     2016 :      0.0,
     2017 :      0.0
 }
+"""
 
-try:
-    namespaces = {'osss': 'http://ssa.gov/osss/schemas/1.0'}
-    xtree = et.parse("Your_Social_Security_Statement_Data.xml")
-    xroot = xtree.getroot()
-    EarningsRecord.clear()
-
-    for node in xroot.findall('osss:EarningsRecord/osss:Earnings', namespaces):
-        EarningsRecord[int(node.attrib.get("startYear"))] = float( node.find("osss:FicaEarnings", namespaces).text)
-except:
-    print ("XML file was not found!")
 
 # National Average Wage Index (NAWI) data as defined by:
 # https://www.ssa.gov/oact/cola/AWI.html
@@ -81,8 +80,26 @@ NationalAverageWageIndexSeries = {
     2001 : 32921.92,   2002 : 33252.09,   2003 : 34064.95,   2004 : 35648.55,   2005 : 36952.94,
     2006 : 38651.41,   2007 : 40405.48,   2008 : 41334.97,   2009 : 40711.61,   2010 : 41673.83,
     2011 : 42979.61,   2012 : 44321.67,   2013 : 44888.16,   2014 : 46481.52,   2015 : 48098.63,
-    2016 : 48642.15,   2017 : 50321.89,   2018 : 52145.80,   2019 : 54099.99
+    2016 : 48642.15,   2017 : 50321.89,   2018 : 52145.80,   2019 : 54099.99,   2020 : 55628.60,
 }
+
+
+def load_xml_statement(fspec="Your_Social_Security_Statement_Data.xml"):
+    try:
+        xtree = et.parse(fspec)
+    except OSError as e:
+        if not EarningsRecord:
+            print("XML file was not found! - %s\n" % (e,), file=sys.stderr)
+            EarningsRecord.update({2022: 0})
+    else:
+        namespaces = {'osss': 'http://ssa.gov/osss/schemas/2.0'}
+        xroot = xtree.getroot()
+        EarningsRecord.clear()
+        EarningsRecord.update({int(node.attrib.get("startYear")): float( node.find("osss:FicaEarnings", namespaces).text)
+            for node in xroot.findall('osss:EarningsRecord/osss:Earnings', namespaces)})
+
+
+load_xml_statement()
 
 # The first year with Social Security Earnings
 EarningsRecord_FirstYear = min(EarningsRecord, key=int)
@@ -174,13 +191,14 @@ ReducedMonthlyBenefit = 0.7 * NormalMonthlyBenefit
 ReducedMonthlyBenefit = (floor(ReducedMonthlyBenefit * 10.0)) / 10.0
 
 # Print the results
-print ("Top 35 Years of Adjusted Earnings _________" + "{:11.2f}".format(Top35YearsEarnings))
-print ("Average Indexed Monthly Earnings (AIME) ___" + "{:11.2f}".format(AIME))
-print ("First Bend Point __________________________" + "{:11.2f}".format(FirstBendPoint))
-print ("Second Bend Point _________________________" + "{:11.2f}".format(SecondBendPoint))
-print ("Normal Monthly Benefit ____________________" + "{:11.2f}".format(NormalMonthlyBenefit))
-print ("Normal Annual Benefit _____________________" + "{:11.2f}".format(NormalMonthlyBenefit * 12.0))
-print ("Reduced (70%) Monthly Benefit _____________" + "{:11.2f}".format(ReducedMonthlyBenefit))
-print ("Reduced (70%) Annual Benefit ______________" + "{:11.2f}".format(ReducedMonthlyBenefit * 12.0))
+print("Earnings record years analyzed ____________{:8d}".format(len(EarningsRecord)))
+print("Top 35 Years of Adjusted Earnings _________{:11.2f}".format(Top35YearsEarnings))
+print("Average Indexed Monthly Earnings (AIME) ___{:11.2f}".format(AIME))
+print("First Bend Point __________________________{:11.2f}".format(FirstBendPoint))
+print("Second Bend Point _________________________{:11.2f}".format(SecondBendPoint))
+print("Normal Monthly Benefit ____________________{:11.2f}".format(NormalMonthlyBenefit))
+print("Normal Annual Benefit _____________________{:11.2f}".format(NormalMonthlyBenefit * 12.0))
+print("Reduced (70%) Monthly Benefit _____________{:11.2f}".format(ReducedMonthlyBenefit))
+print("Reduced (70%) Annual Benefit ______________{:11.2f}".format(ReducedMonthlyBenefit * 12.0))
 
 
