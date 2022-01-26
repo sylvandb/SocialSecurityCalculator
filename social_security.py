@@ -188,7 +188,14 @@ print("Top 35 Years of Adjusted Earnings _________{:11.2f}".format(Top35YearsEar
 print("Average Indexed Monthly Earnings (AIME) ___{:11.2f}".format(AIME))
 print("First Bend Point __________________________{:11.2f}".format(FirstBendPoint))
 print("Second Bend Point _________________________{:11.2f}".format(SecondBendPoint))
-print("Normal Monthly Benefit ____________________{:11.2f}".format(NormalMonthlyBenefit))
-print("Normal Annual Benefit _____________________{:11.2f}".format(NormalMonthlyBenefit * 12.0))
 print("Reduced (70%) Monthly Benefit _____________{:11.2f}".format(ReducedMonthlyBenefit))
 print("Reduced (70%) Annual Benefit ______________{:11.2f}".format(ReducedMonthlyBenefit * 12.0))
+print("Normal Monthly Benefit ____________________{:11.2f}".format(NormalMonthlyBenefit))
+print("Normal Annual Benefit _____________________{:11.2f}".format(NormalMonthlyBenefit * 12.0))
+Benefit = NormalMonthlyBenefit * 12
+for yr in range(3):
+    Benefit *= 1.08
+    MonthlyBenefit = Benefit / 12
+    MonthlyBenefit = (floor(MonthlyBenefit * 10.0)) / 10.0
+    print("Increased Monthly Benefit FRA+{} ___________{:11.2f}".format(yr, MonthlyBenefit))
+    print("Increased Annual Benefit FRA+{} ____________{:11.2f}".format(yr, MonthlyBenefit * 12.0))
