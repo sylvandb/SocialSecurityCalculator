@@ -26,6 +26,39 @@ from math import floor
 import xml.etree.ElementTree as et
 import sys
 
+
+
+# ??? delay load_xml_statement and the calculations???
+def get_results():
+    if xml_statement_error:
+        raise IndexError(xml_statement_error)
+    return Results
+
+
+def format_results(results, max_increase=3):
+    lines = []
+    lines.append("Earnings record years analyzed ____________ {}".format(len(results['EarningsRecord'])))
+    lines.append("Earning Years with 0 Earnings _____________ {}".format(', '.join(results['MissingEarningYears'])))
+    lines.append("Total Actual Earnings in all Years ________{:11.2f}".format(results['TotalActualEarnings']))
+    lines.append("Total Adjusted Earnings in all Years ______{:11.2f}".format(results['TotalAdjustedEarnings']))
+    lines.append("Discarded Adjusted Earnings _______________{:11.2f}".format(results['TotalAdjustedEarnings'] - results['Top35YearsEarnings']))
+    lines.append("Top 35 Years of Adjusted Earnings _________{:11.2f}".format(results['Top35YearsEarnings']))
+    lines.append("Average Indexed Monthly Earnings (AIME) ___{:11.2f}".format(results['AverageIndexedMonthlyEarnings']))
+    lines.append("First Bend Point __________________________{:11.2f}".format(results['FirstBendPoint']))
+    lines.append("Second Bend Point _________________________{:11.2f}".format(results['SecondBendPoint']))
+    lines.append("Reduced (70%) Monthly Benefit _____________{:11.2f}".format(results['ReducedBenefit']))
+    lines.append("Reduced (70%) Annual Benefit ______________{:11.2f}".format(results['ReducedBenefit'] * 12.0))
+    lines.append("Normal Monthly Benefit ____________________{:11.2f}".format(results['NormalBenefit']))
+    lines.append("Normal Annual Benefit _____________________{:11.2f}".format(results['NormalBenefit'] * 12.0))
+    try:
+        for yr in range(max_increase):
+            lines.append("Increased Monthly Benefit FRA+{} ___________{:11.2f}".format(yr + 1, results['IncreasedBenefit'][yr]))
+            lines.append("Increased Annual Benefit FRA+{} ____________{:11.2f}".format(yr + 1, results['IncreasedBenefit'][yr] * 12.0))
+    except IndexError:
+        pass
+    return lines
+
+
 # Earnings history by year.
 # You can find out the information by logging into "my Social Security" at
 # https://www.ssa.gov
@@ -85,11 +118,13 @@ NationalAverageWageIndexSeries = {
 
 
 def load_xml_statement(fspec="Your_Social_Security_Statement_Data.xml"):
+    msg = None
     try:
         xtree = et.parse(fspec)
     except OSError as e:
         if not EarningsRecord:
-            print("XML file was not found! - %s\n" % (e,), file=sys.stderr)
+            msg = "No Earnings Record and no XML statement! - %s\n" % (e,)
+            print(msg, file=sys.stderr)
             EarningsRecord.update({2022: 0})
     else:
         namespaces = {'osss': 'http://ssa.gov/osss/schemas/2.0'}
@@ -97,9 +132,10 @@ def load_xml_statement(fspec="Your_Social_Security_Statement_Data.xml"):
         EarningsRecord.clear()
         EarningsRecord.update({int(node.attrib.get("startYear")): float( node.find("osss:FicaEarnings", namespaces).text)
             for node in xroot.findall('osss:EarningsRecord/osss:Earnings', namespaces)})
+    return msg
 
 
-load_xml_statement()
+xml_statement_error = load_xml_statement()
 
 # The first year with Social Security Earnings
 EarningsRecord_FirstYear = min(EarningsRecord, key=int)
@@ -177,25 +213,36 @@ NormalMonthlyBenefit = (floor(NormalMonthlyBenefit * 10.0)) / 10.0
 ReducedMonthlyBenefit = 0.7 * NormalMonthlyBenefit
 ReducedMonthlyBenefit = (floor(ReducedMonthlyBenefit * 10.0)) / 10.0
 
-
-# Print the results
-print("Earnings record years analyzed ____________ {}".format(len(EarningsRecord)))
-print("Earning Years with 0 Earnings _____________ {}".format(', '.join(MissingEarningYears)))
-print("Total Actual Earnings in all Years ________{:11.2f}".format(TotalAllEarnings))
-print("Total Adjusted Earnings in all Years ______{:11.2f}".format(TotalAdjustedEarnings))
-print("Discarded Adjusted Earnings _______________{:11.2f}".format(TotalAdjustedEarnings - Top35YearsEarnings))
-print("Top 35 Years of Adjusted Earnings _________{:11.2f}".format(Top35YearsEarnings))
-print("Average Indexed Monthly Earnings (AIME) ___{:11.2f}".format(AIME))
-print("First Bend Point __________________________{:11.2f}".format(FirstBendPoint))
-print("Second Bend Point _________________________{:11.2f}".format(SecondBendPoint))
-print("Reduced (70%) Monthly Benefit _____________{:11.2f}".format(ReducedMonthlyBenefit))
-print("Reduced (70%) Annual Benefit ______________{:11.2f}".format(ReducedMonthlyBenefit * 12.0))
-print("Normal Monthly Benefit ____________________{:11.2f}".format(NormalMonthlyBenefit))
-print("Normal Annual Benefit _____________________{:11.2f}".format(NormalMonthlyBenefit * 12.0))
+# Calculate the increased benefit from delaying past Full Retirement Age
+# Note this calculates for 5 years, the maximum, but currently the increase
+# ends at age 70. This means someone with an FRA of 67 can only get 3 years
+# of increased benefits. The rest calculated don't apply to that person.
+IncreasedBenefit = []
 Benefit = NormalMonthlyBenefit * 12
-for yr in range(3):
+for yr in range(5):
     Benefit *= 1.08
     MonthlyBenefit = Benefit / 12
     MonthlyBenefit = (floor(MonthlyBenefit * 10.0)) / 10.0
-    print("Increased Monthly Benefit FRA+{} ___________{:11.2f}".format(yr, MonthlyBenefit))
-    print("Increased Annual Benefit FRA+{} ____________{:11.2f}".format(yr, MonthlyBenefit * 12.0))
+    IncreasedBenefit.append(MonthlyBenefit)
+
+
+Results = {
+    "EarningsRecord": EarningsRecord,
+    "MissingEarningYears": MissingEarningYears,
+    "TotalActualEarnings": TotalAllEarnings,
+    "TotalAdjustedEarnings": TotalAdjustedEarnings,
+    "Top35YearsEarnings": Top35YearsEarnings,
+    "AverageIndexedMonthlyEarnings": AIME,
+    "FirstBendPoint": FirstBendPoint,
+    "SecondBendPoint": SecondBendPoint,
+    "NormalBenefit": NormalMonthlyBenefit,
+    "ReducedBenefit": ReducedMonthlyBenefit,
+    "IncreasedBenefit": IncreasedBenefit,
+}
+
+
+
+
+if __name__ == "__main__":
+
+    print('\n'.join(format_results(Results)))
