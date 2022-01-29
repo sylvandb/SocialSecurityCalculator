@@ -26,6 +26,8 @@ from math import floor
 import xml.etree.ElementTree as et
 import sys
 
+# filename on cmdline or the default
+SOC_SEC_XML = sys.argv[1] if sys.argv[1:] else "Your_Social_Security_Statement_Data.xml"
 
 
 # ??? delay load_xml_statement and the calculations???
@@ -117,7 +119,7 @@ NationalAverageWageIndexSeries = {
 }
 
 
-def load_xml_statement(fspec="Your_Social_Security_Statement_Data.xml"):
+def load_xml_statement(fspec=SOC_SEC_XML):
     msg = None
     try:
         xtree = et.parse(fspec)
