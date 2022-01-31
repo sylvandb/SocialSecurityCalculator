@@ -40,10 +40,13 @@ def get_results():
 def format_results(results, max_increase=3):
     lines = []
     lines.append("Earnings record years analyzed ____________ {}".format(len(results['EarningsRecord'])))
+    lines.append("First Earnings Year analyzed ______________ {}".format(min(results['EarningsRecord'])))
+    lines.append("Last Earnings Year analyzed _______________ {}".format(max(results['EarningsRecord'])))
     lines.append("Earning Years with 0 Earnings _____________ {}".format(', '.join(results['MissingEarningYears'])))
     lines.append("Total Actual Earnings in all Years ________{:11.2f}".format(results['TotalActualEarnings']))
     lines.append("Total Adjusted Earnings in all Years ______{:11.2f}".format(results['TotalAdjustedEarnings']))
     lines.append("Discarded Adjusted Earnings _______________{:11.2f}".format(results['TotalAdjustedEarnings'] - results['Top35YearsEarnings']))
+    lines.append("Top 35 Included Minimum Annual Income _____{:11.2f}".format(results['Top35YearsMinimum']))
     lines.append("Top 35 Years of Adjusted Earnings _________{:11.2f}".format(results['Top35YearsEarnings']))
     lines.append("Average Indexed Monthly Earnings (AIME) ___{:11.2f}".format(results['AverageIndexedMonthlyEarnings']))
     lines.append("First Bend Point __________________________{:11.2f}".format(results['FirstBendPoint']))
@@ -181,7 +184,9 @@ TotalAllEarnings = sum(EarningsRecord.values())
 TotalAdjustedEarnings = sum(AdjustedEarnings.values())
 
 # Top 35 years of adjusted annual earnings
-Top35YearsEarnings = sum(sorted(AdjustedEarnings.values())[-35:])
+Top35AdjustedEarnings = sorted(AdjustedEarnings.values())[-35:]
+Top35YearsEarnings = sum(Top35AdjustedEarnings)
+Top35YearsMinimum = Top35AdjustedEarnings[0]
 
 # Calculate the Average Indexed Monthly earnings (AIME) by dividing the Top 35
 # years of earnings by the number of months in 35 years (35 * 12 = 420)
@@ -230,10 +235,12 @@ for yr in range(5):
 
 Results = {
     "EarningsRecord": EarningsRecord,
+    "Top35AdjustedEarnings": Top35AdjustedEarnings,
     "MissingEarningYears": MissingEarningYears,
     "TotalActualEarnings": TotalAllEarnings,
     "TotalAdjustedEarnings": TotalAdjustedEarnings,
     "Top35YearsEarnings": Top35YearsEarnings,
+    "Top35YearsMinimum": Top35YearsMinimum,
     "AverageIndexedMonthlyEarnings": AIME,
     "FirstBendPoint": FirstBendPoint,
     "SecondBendPoint": SecondBendPoint,
