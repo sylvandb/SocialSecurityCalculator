@@ -30,10 +30,16 @@ import sys
 SOC_SEC_XML = sys.argv[1] if sys.argv[1:] else "Your_Social_Security_Statement_Data.xml"
 
 
+Soft_Fail = False
+XML_Statement_Error = None
+Results = {}
+
 # ??? delay load_xml_statement and the calculations???
 def get_results():
-    if xml_statement_error:
-        raise IndexError(xml_statement_error)
+    if not Results:
+        do_the_big_calculation_method()
+    if XML_Statement_Error:
+        raise ValueError(XML_Statement_Error)
     return Results
 
 
@@ -101,6 +107,29 @@ EarningsRecord = {
 """
 
 
+def load_xml_statement(fspec=SOC_SEC_XML):
+    global XML_Statement_Error
+    XML_Statement_Error = None
+
+    try:
+        xtree = et.parse(fspec)
+    except OSError as e:
+        if not EarningsRecord:
+            XML_Statement_Error = "No Earnings Record and no XML statement! - %s\n" % (e,)
+            if not Soft_Fail:
+                raise ValueError(XML_Statement_Error)
+            print(XML_Statement_Error, file=sys.stderr)
+            EarningsRecord.update({2022: 0})
+    else:
+        namespaces = {'osss': 'http://ssa.gov/osss/schemas/2.0'}
+        xroot = xtree.getroot()
+        EarningsRecord.clear()
+        EarningsRecord.update({int(node.attrib.get("startYear")): float( node.find("osss:FicaEarnings", namespaces).text)
+            for node in xroot.findall('osss:EarningsRecord/osss:Earnings', namespaces)})
+    return XML_Statement_Error
+
+
+
 # National Average Wage Index (NAWI) data as defined by:
 # https://www.ssa.gov/oact/cola/AWI.html
 #
@@ -122,136 +151,122 @@ NationalAverageWageIndexSeries = {
 }
 
 
-def load_xml_statement(fspec=SOC_SEC_XML):
-    msg = None
-    try:
-        xtree = et.parse(fspec)
-    except OSError as e:
-        if not EarningsRecord:
-            msg = "No Earnings Record and no XML statement! - %s\n" % (e,)
-            print(msg, file=sys.stderr)
-            EarningsRecord.update({2022: 0})
-    else:
-        namespaces = {'osss': 'http://ssa.gov/osss/schemas/2.0'}
-        xroot = xtree.getroot()
-        EarningsRecord.clear()
-        EarningsRecord.update({int(node.attrib.get("startYear")): float( node.find("osss:FicaEarnings", namespaces).text)
-            for node in xroot.findall('osss:EarningsRecord/osss:Earnings', namespaces)})
-    return msg
 
+def do_the_big_calculation_method():
 
-xml_statement_error = load_xml_statement()
+    load_xml_statement()
 
 # The first year with Social Security Earnings
-EarningsRecord_FirstYear = min(EarningsRecord, key=int)
+    EarningsRecord_FirstYear = min(EarningsRecord, key=int)
 
 # The last year with Social Security Earnings
-EarningsRecord_LastYear = max(EarningsRecord, key=int)
+    EarningsRecord_LastYear = max(EarningsRecord, key=int)
 
 # The first year of NAWI data
-NationalAverageWageIndexSeries_FirstYear = min(NationalAverageWageIndexSeries, key=int)
+    NationalAverageWageIndexSeries_FirstYear = min(NationalAverageWageIndexSeries, key=int)
 
 # The last year of NAWI data
-NationalAverageWageIndexSeries_LastYear = max(NationalAverageWageIndexSeries, key=int)
+    NationalAverageWageIndexSeries_LastYear = max(NationalAverageWageIndexSeries, key=int)
 
 # Dictionary to hold the Average Wage Index (AWI) adjustment by year
-AWI_Factors = {}
+    AWI_Factors = {}
 
 # Keep track of the last year for which an AWI adjustment factor is calculated
-Last_AWI_Year = NationalAverageWageIndexSeries_FirstYear
+    Last_AWI_Year = NationalAverageWageIndexSeries_FirstYear
 
 # Calculate the AWI adjustment factor for each year that we have data
-for i in range(NationalAverageWageIndexSeries_FirstYear, NationalAverageWageIndexSeries_LastYear) :
-    AWI_Factors[i] = 1 + ( (NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] - NationalAverageWageIndexSeries[i]) / NationalAverageWageIndexSeries[i])
-    Last_AWI_Year = i
+    for i in range(NationalAverageWageIndexSeries_FirstYear, NationalAverageWageIndexSeries_LastYear) :
+        AWI_Factors[i] = 1 + ( (NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] - NationalAverageWageIndexSeries[i]) / NationalAverageWageIndexSeries[i])
+        Last_AWI_Year = i
 
 # If we don't have data for the most recent years, just pad out the adjustment
 # factor to be "1.0" up until the last year with earnings
-for i in range(Last_AWI_Year + 1, EarningsRecord_LastYear + 1) :
-    AWI_Factors[i] = 1.0
+    for i in range(Last_AWI_Year + 1, EarningsRecord_LastYear + 1) :
+        AWI_Factors[i] = 1.0
 
 # Dictionary to hold the amount of annual adjusted earnings (as adjusted by the
 # AWI factors in each year) per year
-AdjustedEarnings = {}
+    AdjustedEarnings = {}
 
 # Calculate the amount of the adjusted earnings for each year by multiplying
 # the earnings in each year by the AWI adjustment factor for that specific year
-for i in range(EarningsRecord_FirstYear, EarningsRecord_LastYear + 1) :
-    AdjustedEarnings[i] = EarningsRecord[i] * AWI_Factors[i]
+    for i in range(EarningsRecord_FirstYear, EarningsRecord_LastYear + 1) :
+        AdjustedEarnings[i] = EarningsRecord[i] * AWI_Factors[i]
 
-MissingEarningYears = list(str(k) for k, v in EarningsRecord.items() if not v)
-TotalAllEarnings = sum(EarningsRecord.values())
-TotalAdjustedEarnings = sum(AdjustedEarnings.values())
+    MissingEarningYears = list(str(k) for k, v in EarningsRecord.items() if not v)
+    TotalAllEarnings = sum(EarningsRecord.values())
+    TotalAdjustedEarnings = sum(AdjustedEarnings.values())
 
 # Top 35 years of adjusted annual earnings
-Top35AdjustedEarnings = sorted(AdjustedEarnings.values())[-35:]
-Top35YearsEarnings = sum(Top35AdjustedEarnings)
-Top35YearsMinimum = Top35AdjustedEarnings[0]
+    Top35AdjustedEarnings = sorted(AdjustedEarnings.values())[-35:]
+    Top35YearsEarnings = sum(Top35AdjustedEarnings)
+    Top35YearsMinimum = Top35AdjustedEarnings[0]
 
 # Calculate the Average Indexed Monthly earnings (AIME) by dividing the Top 35
 # years of earnings by the number of months in 35 years (35 * 12 = 420)
-AIME = Top35YearsEarnings / 420.0
+    AIME = Top35YearsEarnings / 420.0
 
 # Calculate the Social Security "Bend Points" for the Primary Insurance Amount
 # (PIA) as defined by:
 # https://www.ssa.gov/oact/cola/piaformula.html
-FirstBendPoint = round(180.0 * NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] / 9779.44)
-SecondBendPoint = round(1085.0 * NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] / 9779.44)
+    FirstBendPoint = round(180.0 * NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] / 9779.44)
+    SecondBendPoint = round(1085.0 * NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] / 9779.44)
 
 # Variable to hold the normal monthly benefit amount
-NormalMonthlyBenefit = 0.0;
+    NormalMonthlyBenefit = 0.0;
 
 # If the calculated AIME is below the first bend point
-if AIME <= FirstBendPoint:
-    NormalMonthlyBenefit = 0.9 * AIME
+    if AIME <= FirstBendPoint:
+        NormalMonthlyBenefit = 0.9 * AIME
 # Otherwise, if the AIME is between the two bend points
-elif AIME > FirstBendPoint and AIME <= SecondBendPoint:
-    NormalMonthlyBenefit = (0.9 * FirstBendPoint) + ( 0.32 * (AIME - FirstBendPoint) )
+    elif AIME > FirstBendPoint and AIME <= SecondBendPoint:
+        NormalMonthlyBenefit = (0.9 * FirstBendPoint) + ( 0.32 * (AIME - FirstBendPoint) )
 # Otherwise if the AIME is beyond the second bend point
-else:
-    NormalMonthlyBenefit = (0.9 * FirstBendPoint) + ( 0.32 * (SecondBendPoint - FirstBendPoint) ) + ( 0.15 * (AIME - SecondBendPoint) )
+    else:
+        NormalMonthlyBenefit = (0.9 * FirstBendPoint) + ( 0.32 * (SecondBendPoint - FirstBendPoint) ) + ( 0.15 * (AIME - SecondBendPoint) )
 
 # The monthly benefit amount is rounded down to the nearest 0.10
-NormalMonthlyBenefit = (floor(NormalMonthlyBenefit * 10.0)) / 10.0
+    NormalMonthlyBenefit = (floor(NormalMonthlyBenefit * 10.0)) / 10.0
 
 # Calculate the reduced monthly benefit. Note that this takes into account the
 # worst case scenario (70%). Depending on your birth date and how early you
 # begin drawing Social Security, this number may be different.
-ReducedMonthlyBenefit = 0.7 * NormalMonthlyBenefit
-ReducedMonthlyBenefit = (floor(ReducedMonthlyBenefit * 10.0)) / 10.0
+    ReducedMonthlyBenefit = 0.7 * NormalMonthlyBenefit
+    ReducedMonthlyBenefit = (floor(ReducedMonthlyBenefit * 10.0)) / 10.0
 
 # Calculate the increased benefit from delaying past Full Retirement Age
 # Note this calculates for 5 years, the maximum, but currently the increase
 # ends at age 70. This means someone with an FRA of 67 can only get 3 years
 # of increased benefits. The rest calculated don't apply to that person.
-IncreasedBenefit = []
-Benefit = NormalMonthlyBenefit * 12
-for yr in range(5):
-    Benefit *= 1.08
-    MonthlyBenefit = Benefit / 12
-    MonthlyBenefit = (floor(MonthlyBenefit * 10.0)) / 10.0
-    IncreasedBenefit.append(MonthlyBenefit)
+    IncreasedBenefit = []
+    Benefit = NormalMonthlyBenefit * 12
+    for yr in range(5):
+        Benefit *= 1.08
+        MonthlyBenefit = Benefit / 12
+        MonthlyBenefit = (floor(MonthlyBenefit * 10.0)) / 10.0
+        IncreasedBenefit.append(MonthlyBenefit)
 
 
-Results = {
-    "EarningsRecord": EarningsRecord,
-    "Top35AdjustedEarnings": Top35AdjustedEarnings,
-    "MissingEarningYears": MissingEarningYears,
-    "TotalActualEarnings": TotalAllEarnings,
-    "TotalAdjustedEarnings": TotalAdjustedEarnings,
-    "Top35YearsEarnings": Top35YearsEarnings,
-    "Top35YearsMinimum": Top35YearsMinimum,
-    "AverageIndexedMonthlyEarnings": AIME,
-    "FirstBendPoint": FirstBendPoint,
-    "SecondBendPoint": SecondBendPoint,
-    "NormalBenefit": NormalMonthlyBenefit,
-    "ReducedBenefit": ReducedMonthlyBenefit,
-    "IncreasedBenefit": IncreasedBenefit,
-}
+    Results.update({
+        "EarningsRecord": EarningsRecord,
+        "Top35AdjustedEarnings": Top35AdjustedEarnings,
+        "MissingEarningYears": MissingEarningYears,
+        "TotalActualEarnings": TotalAllEarnings,
+        "TotalAdjustedEarnings": TotalAdjustedEarnings,
+        "Top35YearsEarnings": Top35YearsEarnings,
+        "Top35YearsMinimum": Top35YearsMinimum,
+        "AverageIndexedMonthlyEarnings": AIME,
+        "FirstBendPoint": FirstBendPoint,
+        "SecondBendPoint": SecondBendPoint,
+        "NormalBenefit": NormalMonthlyBenefit,
+        "ReducedBenefit": ReducedMonthlyBenefit,
+        "IncreasedBenefit": IncreasedBenefit,
+    })
 
 
 
 
 if __name__ == "__main__":
 
-    print('\n'.join(format_results(Results)))
+    Soft_Fail = True
+    print('\n'.join(format_results(get_results())))
