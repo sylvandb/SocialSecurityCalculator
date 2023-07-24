@@ -19,6 +19,7 @@
 # Written by Ryan Antkowiak 2017-07-15
 # Copyright (c) 2017 All Rights Reserved
 #
+# UPDATE data tables annually or as needed
 
 # Import modules
 from datetime import datetime
@@ -26,44 +27,12 @@ from math import floor
 import xml.etree.ElementTree as et
 import sys
 
+
 # filename on cmdline or the default
 SOC_SEC_XML = sys.argv[1] if sys.argv[1:] else "Your_Social_Security_Statement_Data.xml"
 
 
-# Social Security OASI+DI Tax Rates - paid by each of employee and employer
-# https://www.ssa.gov/OACT/ProgData/oasdiRates.html
-OASDITaxRateChanges = {
-    1937: 1,
-    1950: 1.5,
-    1954: 2.0,
-    1957: 2.25,
-    1959: 2.5,
-    1960: 3.0,
-    1962: 3.125,
-    1963: 3.625,
-    1966: 3.85,
-    1967: 3.9,
-    1968: 3.8, # wow, it dropped?!
-    1969: 4.2, # must have been a mistake ;)
-    1971: 4.6,
-    1973: 4.85,
-    1974: 4.95,
-    1978: 5.05,
-    1979: 5.08,
-    1981: 5.35,
-    1982: 5.4,
-    1984: 5.7,
-    1988: 6.06,
-    1990: 6.2,
-}
-OASDITaxRates = {}
-DefaultOASDITaxRate = 0
-for year in range(min(OASDITaxRateChanges), 1 + max(OASDITaxRateChanges)):
-    DefaultOASDITaxRate = OASDITaxRateChanges.get(year, DefaultOASDITaxRate)
-    OASDITaxRates[year] = DefaultOASDITaxRate
-
-
-# National Average Wage Index (NAWI) data as defined by:
+# UPDATE National Average Wage Index (NAWI) data as defined by:
 # https://www.ssa.gov/oact/cola/AWI.html
 NationalAverageWageIndexSeries = {
     1951 :  2799.16,   1952 :  2973.32,   1953 :  3139.44,   1954 :  3155.64,   1955 :  3301.44,
@@ -80,14 +49,16 @@ NationalAverageWageIndexSeries = {
     2006 : 38651.41,   2007 : 40405.48,   2008 : 41334.97,   2009 : 40711.61,   2010 : 41673.83,
     2011 : 42979.61,   2012 : 44321.67,   2013 : 44888.16,   2014 : 46481.52,   2015 : 48098.63,
     2016 : 48642.15,   2017 : 50321.89,   2018 : 52145.80,   2019 : 54099.99,   2020 : 55628.60,
+    2021 : 60575.07,
 }
 
 
-# S&P 500 Index - Historical Annual Data
+# UPDATE S&P 500 Index - Historical Annual Data
 # https://www.macrotrends.net/2526/sp-500-historical-annual-returns
 # TODO: cross check (with yahoo or ???)
 # Year: (Average Closing Price,  Year Open,  Year High,  Year Low,  Year Close,  Annual % Change)
 SnP500AnnualData = {
+    2022: (4097.49, 4796.56, 4796.56, 3577.03, 3839.50, -19.44),
     2021: (4273.41, 3700.65, 4793.06, 3700.65, 4766.18, 26.89),
     2020: (3217.86, 3257.85, 3756.07, 2237.40, 3756.07, 16.26),
     2019: (2913.36, 2510.03, 3240.02, 2447.89, 3230.78, 28.88),
@@ -187,6 +158,40 @@ SnP500AnnualData = {
 #suspect = [(y, PChg, round(10000 * (YClose / YOpen - 1))/100) for y, (AvgCP, YOpen, YHigh, YLow, YClose, PChg) in SnP500AnnualData.items()
 #    if abs(PChg * 100 - round(10000 * (YClose / YOpen - 1))) > abs(PChg * 20)]
 #print(suspect); exit()
+
+
+# UPDATE Social Security OASI+DI Tax Rates - paid by each of employee and employer
+# https://www.ssa.gov/OACT/ProgData/oasdiRates.html
+OASDITaxRateChanges = {
+    1937: 1,
+    1950: 1.5,
+    1954: 2.0,
+    1957: 2.25,
+    1959: 2.5,
+    1960: 3.0,
+    1962: 3.125,
+    1963: 3.625,
+    1966: 3.85,
+    1967: 3.9,
+    1968: 3.8, # wow, it dropped?!
+    1969: 4.2, # must have been a mistake ;)
+    1971: 4.6,
+    1973: 4.85,
+    1974: 4.95,
+    1978: 5.05,
+    1979: 5.08,
+    1981: 5.35,
+    1982: 5.4,
+    1984: 5.7,
+    1988: 6.06,
+    1990: 6.2,
+}
+OASDITaxRates = {}
+DefaultOASDITaxRate = 0
+for year in range(min(OASDITaxRateChanges), 1 + max(OASDITaxRateChanges)):
+    DefaultOASDITaxRate = OASDITaxRateChanges.get(year, DefaultOASDITaxRate)
+    OASDITaxRates[year] = DefaultOASDITaxRate
+
 
 
 Soft_Fail = False
