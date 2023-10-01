@@ -28,8 +28,19 @@ import xml.etree.ElementTree as et
 import sys
 
 
-# filename on cmdline or the default
-SOC_SEC_XML = sys.argv[1] if sys.argv[1:] else "Your_Social_Security_Statement_Data.xml"
+# filename default
+SOC_SEC_XML = "Your_Social_Security_Statement_Data.xml"
+
+# cmdline args
+Earnings = sys.argv[1:] and sys.argv[1] in ('--earnings', )
+if Earnings:
+    del sys.argv[1]
+# filename on cmdline
+if sys.argv[1:]:
+    SOC_SEC_XML = sys.argv[1]
+    del sys.argv[1]
+Earnings = Earnings or (sys.argv[1:] and sys.argv[1] in ('--earnings', ))
+
 
 
 # UPDATE National Average Wage Index (NAWI) data as defined by:
@@ -309,6 +320,20 @@ EarningsRecord = {
 """
 
 
+# Show your earnings record in formatted form suitable to
+# copy/paste into https://ssa.tools/calculator.html
+def show_earnings(earnings=None, outf=None):
+    outf = outf or print
+    for year, amount in iter_earnings(earnings):
+        outf(f"{year}  ${amount:d}")
+
+
+def iter_earnings(earnings=None):
+    earnings = earnings or EarningsRecord
+    for y, a in earnings.items():
+        yield (y, int(a))
+
+
 def load_xml_statement(fspec=SOC_SEC_XML):
     global XML_Statement_Error
     XML_Statement_Error = None
@@ -516,6 +541,11 @@ def snp500():
 
 if __name__ == "__main__":
 
-    Soft_Fail = True
-    res = get_results()
-    print('\n'.join(format_results(res)))
+    if Earnings:
+        load_xml_statement()
+        show_earnings()
+
+    else:
+        Soft_Fail = True
+        res = get_results()
+        print('\n'.join(format_results(res)))
