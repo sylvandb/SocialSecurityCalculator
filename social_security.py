@@ -45,6 +45,7 @@ Earnings = Earnings or (sys.argv[1:] and sys.argv[1] in ('--earnings', ))
 
 # UPDATE National Average Wage Index (NAWI) data as defined by:
 # https://www.ssa.gov/oact/cola/AWI.html
+# availability: late in the next year?
 NationalAverageWageIndexSeries = {
     1951 :  2799.16,   1952 :  2973.32,   1953 :  3139.44,   1954 :  3155.64,   1955 :  3301.44,
     1956 :  3532.36,   1957 :  3641.72,   1958 :  3673.80,   1959 :  3855.80,   1960 :  4007.12,
@@ -66,9 +67,11 @@ NationalAverageWageIndexSeries = {
 
 # UPDATE S&P 500 Index - Historical Annual Data
 # https://www.macrotrends.net/2526/sp-500-historical-annual-returns
+# availability: running total during the year
 # TODO: cross check (with yahoo or ???)
 # Year: (Average Closing Price,  Year Open,  Year High,  Year Low,  Year Close,  Annual % Change)
 SnP500AnnualData = {
+    2023: (4283.73, 3824.14, 4783.35, 3808.10, 4769.83, 24.23),
     2022: (4097.49, 4796.56, 4796.56, 3577.03, 3839.50, -19.44),
     2021: (4273.41, 3700.65, 4793.06, 3700.65, 4766.18, 26.89),
     2020: (3217.86, 3257.85, 3756.07, 2237.40, 3756.07, 16.26),
@@ -173,6 +176,7 @@ SnP500AnnualData = {
 
 # UPDATE Social Security OASI+DI Tax Rates - paid by each of employee and employer
 # https://www.ssa.gov/OACT/ProgData/oasdiRates.html
+# availability: ?
 OASDITaxRateChanges = {
     1937: 1,
     1950: 1.5,
@@ -524,18 +528,19 @@ def snp500():
         "SnP500NowValue": round(snptotal),
         "SnP500AnnuitizedNow": [(p/100, round(p * snptotal/100)) for p in range(3, 7)],
 
-        "SnP500LowRate": round(lowrate, 2),
+        "SnP500ProjectionLowRate": round(lowrate, 2),
         "SnP5005yrValueLow": round(snp5yrlowtotal),
         "SnP500Annuitized5yrLow": [(p/100, round(p * snp5yrlowtotal/100)) for p in range(3, 7)],
         "SnP50010yrValueLow": round(snp10yrlowtotal),
         "SnP500Annuitized10yrLow": [(p/100, round(p * snp10yrlowtotal/100)) for p in range(3, 7)],
 
-        "SnP500AvgRate": round(avgrate, 2),
+        "SnP500ProjectionAvgRate": round(avgrate, 2),
         "SnP5005yrValueAvg": round(snp5yravgtotal),
         "SnP500Annuitized5yrAvg": [(p/100, round(p * snp5yravgtotal/100)) for p in range(3, 7)],
         "SnP50010yrValueAvg": round(snp10yravgtotal),
         "SnP500Annuitized10yrAvg": [(p/100, round(p * snp10yravgtotal/100)) for p in range(3, 7)],
     })
+
 
 
 
