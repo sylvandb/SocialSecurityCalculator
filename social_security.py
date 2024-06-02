@@ -12,14 +12,26 @@
 #               Security eligible earnings in that particular year
 #
 #           2) NationalAverageWageIndexSeries -
-#               Data pulled directly from the Social Security website for the
+#               Data coded here from the Social Security website for the
 #               national average wage data
+#
+#           3) OASDITaxRateChanges -
+#               Data coded here from the Social Security website for the
+#               OASDI tax rates and the year each rate change was effective
+#
+#           4) SnP500AnnualData -
+#               Annual returns for the S&P 500 index coded here for comparing the
+#               return on OASDI tax paid
+#
+# UPDATE data tables annually or as needed
 #
 #
 # Written by Ryan Antkowiak 2017-07-15
 # Copyright (c) 2017 All Rights Reserved
 #
-# UPDATE data tables annually or as needed
+# Extensively modified by sdb
+# Copyright (C) 2023,2024 Sylvan "sdb" Butler
+
 
 # Import modules
 from datetime import datetime
