@@ -34,6 +34,7 @@
 
 
 # Import modules
+from argparse import ArgumentParser
 from datetime import datetime
 from math import floor
 import xml.etree.ElementTree as et
@@ -43,15 +44,18 @@ import sys
 # filename default
 SOC_SEC_XML = "Your_Social_Security_Statement_Data.xml"
 
+
 # cmdline args
-Earnings = sys.argv[1:] and sys.argv[1] in ('--earnings', )
-if Earnings:
-    del sys.argv[1]
+parser = ArgumentParser(description="Calculate expected Social Security retirement benefits using your earnings record XML file.")
+parser.add_argument('--earnings', action='store_true',
+    help="Display the earnings record (don't do the benefit calculations)")
+parser.add_argument('filespec', type=str, nargs='?',
+    help='specify the pathname of the earnings record XML file')
+args = parser.parse_args()
+Earnings = args.earnings
 # filename on cmdline
-if sys.argv[1:]:
-    SOC_SEC_XML = sys.argv[1]
-    del sys.argv[1]
-Earnings = Earnings or (sys.argv[1:] and sys.argv[1] in ('--earnings', ))
+if args.filespec:
+    SOC_SEC_XML = args.filespec
 
 
 
