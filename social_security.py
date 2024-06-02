@@ -299,8 +299,27 @@ def format_results(results):
     recovered = nb_cost / (a_ib - nb)
     year, month = years2ym(FRA + recovered)
     lines.append("  Recovered after {:.1f} years, age {} +{} months".format(recovered, year, month))
-    lines.extend("%s: %s" % (k, v) for k, v in res.items() if k[:6] == 'SnP500')
+    if res.get('SnP500'):
+        snp = res['SnP500']
+        lines.append(f"S&P 500 comparison thru {snp['LastYear']}:")
+        lines.append(f"  S&P averaged {snp['AvgAll']}% over {snp['AllYears']} years")
+        lines.append(f"  Earnings years averaged {snp['AvgEarnYears']}% over {snp['EarnYears']} years")
+        lines.append(f"  Employee tax of ${snp['EmployeeTaxed']} could have become approx. ${snp['NowValue']}")
+        lines.append(f"  Annual withdrawal value: {gen_annualized(snp['NowValue'])}")
+        for krate, k5yr, k10yr, title in (
+            ('ProjectionLowRate', '5yrValueLow', '10yrValueLow', 'low'),
+            ('ProjectionAvgRate', '5yrValueAvg', '10yrValueAvg', 'average')):
+            lines.append(f"  Or value after a delay at {title} rates:")
+            lines.append(f"    Projection at {snp[krate]}% for 5yr delay ${snp[k5yr]}, 10yr ${snp[k10yr]}")
+            lines.append(f"    Annual withdrawal  5yr delay: {gen_annualized(snp[k5yr])}")
+            lines.append(f"    Annual withdrawal 10yr delay: {gen_annualized(snp[k10yr])}")
+        lines.append("(Double those values to approximate the result including employer tax)")
     return lines
+
+def gen_annualized(total):
+    total /= 100
+    l = ((p/100, round(p * total)) for p in range(3, 7))
+    return ' | '.join(f"{rate}% = ${amt}/yr" for rate, amt in l)
 
 
 # Earnings history by year.
@@ -533,29 +552,24 @@ def snp500():
     snp5yravgtotal = fv(5, avgrate / 100, snptotal)
     snp10yravgtotal = fv(5, avgrate / 100, snp5yravgtotal)
 
-    Results.update({
-        "SnP500LastYear": lastsnp,
-        "SnP500AllYears": len(SnP500AnnualData),
-        "SnP500AvgAll": round(allavg, 2),
-        "SnP500EarnYears": len(Results['EarningsRecord']),
-        "SnP500AvgEarnYears": round(earnavg, 2),
+    Results.update({'SnP500': {
+        "LastYear": lastsnp,
+        "AllYears": len(SnP500AnnualData),
+        "AvgAll": round(allavg, 2),
+        "EarnYears": len(Results['EarningsRecord']),
+        "AvgEarnYears": round(earnavg, 2),
 
-        "SnP500EmployeeTaxed": round(snpinvested),
-        "SnP500NowValue": round(snptotal),
-        "SnP500AnnuitizedNow": [(p/100, round(p * snptotal/100)) for p in range(3, 7)],
+        "EmployeeTaxed": round(snpinvested),
+        "NowValue": round(snptotal),
 
-        "SnP500ProjectionLowRate": round(lowrate, 2),
-        "SnP5005yrValueLow": round(snp5yrlowtotal),
-        "SnP500Annuitized5yrLow": [(p/100, round(p * snp5yrlowtotal/100)) for p in range(3, 7)],
-        "SnP50010yrValueLow": round(snp10yrlowtotal),
-        "SnP500Annuitized10yrLow": [(p/100, round(p * snp10yrlowtotal/100)) for p in range(3, 7)],
+        "ProjectionLowRate": round(lowrate, 2),
+        "5yrValueLow": round(snp5yrlowtotal),
+        "10yrValueLow": round(snp10yrlowtotal),
 
-        "SnP500ProjectionAvgRate": round(avgrate, 2),
-        "SnP5005yrValueAvg": round(snp5yravgtotal),
-        "SnP500Annuitized5yrAvg": [(p/100, round(p * snp5yravgtotal/100)) for p in range(3, 7)],
-        "SnP50010yrValueAvg": round(snp10yravgtotal),
-        "SnP500Annuitized10yrAvg": [(p/100, round(p * snp10yravgtotal/100)) for p in range(3, 7)],
-    })
+        "ProjectionAvgRate": round(avgrate, 2),
+        "5yrValueAvg": round(snp5yravgtotal),
+        "10yrValueAvg": round(snp10yravgtotal),
+    }})
 
 
 
