@@ -49,6 +49,8 @@ SOC_SEC_XML = "Your_Social_Security_Statement_Data.xml"
 parser = ArgumentParser(description="Calculate expected Social Security retirement benefits using your earnings record XML file.")
 parser.add_argument('--earnings', action='store_true',
     help="Display the earnings record (don't do the benefit calculations)")
+parser.add_argument('--dob', '--date-of-birth', type=str,
+    help='specify the date of birth, YYYY-MM-DD, instead of using the value from the earnings record')
 parser.add_argument('filespec', type=str, nargs='?',
     help='specify the pathname of the earnings record XML file')
 args = parser.parse_args()
@@ -57,11 +59,26 @@ Earnings = args.earnings
 if args.filespec:
     SOC_SEC_XML = args.filespec
 
+DoB = None
+if args.dob:
+    if len(args.dob) == 8:
+        dob = map(int, (args.dob[:4], args.dob[4:6], args.dob[6:]))
+        DoB = datetime(*dob)
+    elif len(args.dob) == 10:
+        dob = map(int, args.dob.split('-'))
+        DoB = datetime(*dob)
+    else:
+        raise ValueError(f"Specify date of birth as YYYY-MM-DD, not: {args.dob}")
 
 
 # UPDATE National Average Wage Index (NAWI) data as defined by:
-# https://www.ssa.gov/oact/cola/AWI.html
-# availability: late in the next year?
+#   https://www.ssa.gov/oact/cola/AWI.html
+# availability: late in the second year?
+# "index an individual's earnings to the average wage level two years prior to
+# the year of first eligibility. Thus, for a person retiring at age 62 in 2024,
+# we would index the person's earnings to the average wage index for 2022, ...
+# take earnings in 2022 or later at face value."
+# Year: AWI
 NationalAverageWageIndexSeries = {
     1951 :  2799.16,   1952 :  2973.32,   1953 :  3139.44,   1954 :  3155.64,   1955 :  3301.44,
     1956 :  3532.36,   1957 :  3641.72,   1958 :  3673.80,   1959 :  3855.80,   1960 :  4007.12,
@@ -81,8 +98,30 @@ NationalAverageWageIndexSeries = {
 }
 
 
+# UPDATE Cost-Of-Living Adjustments as specified by:
+#   https://www.ssa.gov/OACT/COLA/colaseries.html / https://www.ssa.gov/cola/
+# availability: announced in October
+# "effective with benefits payable for December."
+# "Prior to 1975, Social Security benefit increases were set by legislation."
+# "PIA that is increased by the COLA, with the result truncated to the next lower dime."
+# Year: COLA
+AnnualCOLA = {
+    1975 :  8.0,   1976 :  6.4,   1977 :  5.9,   1978 :  6.5,   1979 :  9.9,   1980 : 14.3,
+    1981 : 11.2,   1982 :  7.4,   1983 :  3.5,   1984 :  3.5,   1985 :  3.1,   1986 :  1.3,
+    1987 :  4.2,   1988 :  4.0,   1989 :  4.7,   1990 :  5.4,   1991 :  3.7,   1992 :  3.0,
+    1993 :  2.6,   1994 :  2.8,   1995 :  2.6,   1996 :  2.9,   1997 :  2.1,   1998 :  1.3,
+    1999 :  2.5,   2000 :  3.5,   2001 :  2.6,   2002 :  1.4,   2003 :  2.1,   2004 :  2.7,
+    2005 :  4.1,   2006 :  3.3,   2007 :  2.3,   2008 :  5.8,   2009 :  0.0,   2010 :  0.0,
+    2011 :  3.6,   2012 :  1.7,   2013 :  1.5,   2014 :  1.7,   2015 :  0.0,   2016 :  0.3,
+    2017 :  2.0,   2018 :  2.8,   2019 :  1.6,   2020 :  1.3,   2021 :  5.9,   2022 :  8.7,
+    2023 :  3.2,   2024 :  3.2,
+}
+# start using COLA instead of AWI as of age
+COLAage = 60
+
+
 # UPDATE S&P 500 Index - Historical Annual Data
-# https://www.macrotrends.net/2526/sp-500-historical-annual-returns
+#   https://www.macrotrends.net/2526/sp-500-historical-annual-returns
 # availability: running total during the year
 # TODO: cross check (with yahoo or ???)
 # Year: (Average Closing Price,  Year Open,  Year High,  Year Low,  Year Close,  Annual % Change)
@@ -267,8 +306,8 @@ def format_results(results):
     lines.append("Top 35 Included Minimum Annual Income _____{:11.2f}".format(results['Top35YearsMinimum']))
     lines.append("Top 35 Years of Adjusted Earnings _________{:11.2f}".format(results['Top35YearsEarnings']))
     lines.append("Average Indexed Monthly Earnings (AIME) ___{:11.2f}".format(results['AverageIndexedMonthlyEarnings']))
-    lines.append("First Bend Point __________________________{:11.2f}".format(results['FirstBendPoint']))
-    lines.append("Second Bend Point _________________________{:11.2f}".format(results['SecondBendPoint']))
+    lines.append("First Bend Point __________________________{:8.0f}".format(results['FirstBendPoint']))
+    lines.append("Second Bend Point _________________________{:8.0f}".format(results['SecondBendPoint']))
     lines.append("Reduced (70%) Monthly Benefit (age 62) ____{:11.2f}".format(results['ReducedBenefit']))
     rb = results['ReducedBenefit'] * 12.0
     nb = results['NormalBenefit'] * 12.0
@@ -374,7 +413,7 @@ def iter_earnings(earnings=None):
 
 
 def load_xml_statement(fspec=SOC_SEC_XML):
-    global XML_Statement_Error
+    global XML_Statement_Error, DoB
     XML_Statement_Error = None
 
     try:
@@ -392,6 +431,11 @@ def load_xml_statement(fspec=SOC_SEC_XML):
         EarningsRecord.clear()
         EarningsRecord.update({int(node.attrib.get("startYear")): float( node.find("osss:FicaEarnings", namespaces).text)
             for node in xroot.findall('osss:EarningsRecord/osss:Earnings', namespaces)})
+        if DoB is None:
+            xmldob = xroot.find("osss:UserInformation/osss:DateOfBirth", namespaces).text
+            dob = map(int, xmldob.split('-'))
+            DoB = datetime(*dob)
+        #print('DoB:', DoB); exit(1)
     return XML_Statement_Error
 
 
@@ -399,6 +443,10 @@ def load_xml_statement(fspec=SOC_SEC_XML):
 def do_the_big_calculation_method():
 
     load_xml_statement()
+
+    if DoB:
+        first = datetime(DoB.year + COLAage, DoB.month, DoB.day)
+        now = datetime.now()
 
 # The first year with Social Security Earnings
     EarningsRecord_FirstYear = min(EarningsRecord, key=int)
@@ -453,8 +501,15 @@ def do_the_big_calculation_method():
 # Calculate the Social Security "Bend Points" for the Primary Insurance Amount
 # (PIA) as defined by:
 # https://www.ssa.gov/oact/cola/piaformula.html
-    FirstBendPoint = round(180.0 * NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] / 9779.44)
-    SecondBendPoint = round(1085.0 * NationalAverageWageIndexSeries[NationalAverageWageIndexSeries_LastYear] / 9779.44)
+    if DoB and now > first:
+        if first.year > NationalAverageWageIndexSeries_LastYear:
+            NAWISyear = NationalAverageWageIndexSeries_LastYear
+        else:
+            NAWISyear = first.year
+    else:
+        NAWISyear = NationalAverageWageIndexSeries_LastYear
+    FirstBendPoint  = round( 180.0 * NationalAverageWageIndexSeries[NAWISyear] / 9779.44)
+    SecondBendPoint = round(1085.0 * NationalAverageWageIndexSeries[NAWISyear] / 9779.44)
 
 # Variable to hold the normal monthly benefit amount
     NormalMonthlyBenefit = 0.0;
@@ -469,8 +524,16 @@ def do_the_big_calculation_method():
     else:
         NormalMonthlyBenefit = (0.9 * FirstBendPoint) + ( 0.32 * (SecondBendPoint - FirstBendPoint) ) + ( 0.15 * (AIME - SecondBendPoint) )
 
-# The monthly benefit amount is rounded down to the nearest 0.10
+# The monthly benefit amount is truncated to the nearest dime (down to the nearest 0.10)
+# should trucating to the dime be before/during/after COLA? after the reduced/increased benefit?
     NormalMonthlyBenefit = (floor(NormalMonthlyBenefit * 10.0)) / 10.0
+
+# apply COLAs
+    if DoB and now > first:
+        for year in range(first.year + 1, now.year + 1):
+            NormalMonthlyBenefit *= 1 + AnnualCOLA.get(year, 0) / 100
+            NormalMonthlyBenefit = (floor(NormalMonthlyBenefit * 10.0)) / 10.0
+            print(f"COLA {year}: {AnnualCOLA.get(year)}")
 
 # Calculate the reduced monthly benefit. Note that this takes into account the
 # worst case scenario (70%). Depending on your birth date and how early you
