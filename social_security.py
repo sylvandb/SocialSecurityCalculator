@@ -74,6 +74,7 @@ if args.dob:
 # UPDATE National Average Wage Index (NAWI) data as defined by:
 #   https://www.ssa.gov/oact/cola/AWI.html
 # availability: late in the second year?
+# used to calculate FirstBendPoint and SecondBendPoint for benefits as well as
 # "index an individual's earnings to the average wage level two years prior to
 # the year of first eligibility. Thus, for a person retiring at age 62 in 2024,
 # we would index the person's earnings to the average wage index for 2022, ...
@@ -94,7 +95,7 @@ NationalAverageWageIndexSeries = {
     2006 : 38651.41,   2007 : 40405.48,   2008 : 41334.97,   2009 : 40711.61,   2010 : 41673.83,
     2011 : 42979.61,   2012 : 44321.67,   2013 : 44888.16,   2014 : 46481.52,   2015 : 48098.63,
     2016 : 48642.15,   2017 : 50321.89,   2018 : 52145.80,   2019 : 54099.99,   2020 : 55628.60,
-    2021 : 60575.07,   2022 : 63795.13,
+    2021 : 60575.07,   2022 : 63795.13,   2023 : 66621.80,
 }
 
 
@@ -114,7 +115,7 @@ AnnualCOLA = {
     2005 :  4.1,   2006 :  3.3,   2007 :  2.3,   2008 :  5.8,   2009 :  0.0,   2010 :  0.0,
     2011 :  3.6,   2012 :  1.7,   2013 :  1.5,   2014 :  1.7,   2015 :  0.0,   2016 :  0.3,
     2017 :  2.0,   2018 :  2.8,   2019 :  1.6,   2020 :  1.3,   2021 :  5.9,   2022 :  8.7,
-    2023 :  3.2,   2024 :  3.2,
+    2023 :  3.2,   2024 :  2.5,
 }
 # start using COLA instead of AWI as of age
 COLAage = 60
