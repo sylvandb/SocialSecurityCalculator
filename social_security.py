@@ -122,8 +122,10 @@ COLAage = 60
 
 
 # UPDATE S&P 500 Index - Historical Annual Data
-#   Avg Close, Annual % (view tables): https://www.macrotrends.net/2526/sp-500-historical-annual-returns
-#   Yr Open, Close (dl 10yr CSV), Avg Close: https://www.macrotrends.net/2488/sp500-10-year-daily-chart
+#   https://www.macrotrends.net/2526/sp-500-historical-annual-returns   (view tables)
+#     Annual Average (Closing?) Price,  Annual Returns % (Change)
+#  https://www.macrotrends.net/2488/sp500-10-year-daily-chart   (dl 10yr CSV)
+#    Year Open,  Year Close,  Avg Close
 # !! Year Open is actually close of the first trading day - seems wrong !!
 # "Performance is calculated as the % change from the last trading day of each year from the last trading day of the previous year."
 # availability: running total during the year
@@ -134,8 +136,10 @@ SIdxPChg = 5
 SIdxYClose = 4
 #                   0                1           2           3          4               5
 # Year: (Average Closing Price,  Year Open,  Year High,  Year Low,  Year Close,  Annual % Change)
+# Year:   ( Avg Clos, Yr Open,  Yr High,  Yr Low ,  Yr Clos,  An Ch%)
 SnP500AnnualData = {
-    2025: (       0,  5868.55,  6740.28,  4982.77,  6714.59,  14.16), # 20251012 ytd
+    2026: (     0  ,  6858.47,  6966.28,  6858.47,  6966.28,   1.76), # 20260109 ytd
+    2025: ( 6216.87,  5868.55,  6932.05,  4982.77,  6845.50,  16.39),
     2024: ( 5428.24,  4742.83,  6090.27,  4688.68,  5881.63,  23.31),
     2023: ( 4283.73,  3824.14,  4783.35,  3808.10,  4769.83,  24.23),
     2022: ( 4097.49,  4796.56,  4796.56,  3577.03,  3839.50,  -19.44),
@@ -240,8 +244,11 @@ SnP500AnnualData = {
 FirstSnP = min(SnP500AnnualData)
 suspect = []
 for y, YClose, PChg in ((y, YClose, PChg) for y, (AvgCP, YOpen, YHigh, YLow, YClose, PChg) in SnP500AnnualData.items()):
-    if y > FirstSnP and PChg != round((YClose / SnP500AnnualData[y-1][SIdxYClose] - 1) * 100, 2):
-        suspect.append((y, PChg, round((YClose / SnP500AnnualData[y-1][SIdxYClose] - 1) * 100, 2)))
+    if y > FirstSnP:
+        prevClose = SnP500AnnualData[y-1][SIdxYClose]
+        PChgCalc = round((YClose / prevClose - 1) * 100, 2)
+        if PChg != PChgCalc:
+            suspect.append((y, PChg, PChgCalc))
 if suspect:
     print("S&P 500 suspect returns:\n", suspect); exit()
 
