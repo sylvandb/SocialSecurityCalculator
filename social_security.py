@@ -32,6 +32,24 @@
 # Extensively modified by sdb
 # Copyright (C) 2023-2025 Sylvan "sdb" Butler
 
+# this script calculates the PRIMARY benefit, not the SPOUSAL benefit
+# VERIFY PRIMARY and SPOUSAL percentages!!!???
+# the SPOUSAL benefit reduces more/faster before FRA than the PRIMARY
+# Age  Primary   Spousal
+#  62   70%      32.5%
+#  63   75%      35%
+#  64   80%      37.5%
+#  65   86.66%   41.66%
+#  66   93.33%   45.83%
+#  67  100%      50%
+#  68  108%      50%
+#  69  116%      50%
+#  70  124%      50%
+# if SPOUSE claims their own at 62 then they only get 32.5% SPOUSAL, but if
+# the PRIMARY has not claimed they cannot get SPOUSAL yet. If PRIMARY claims
+# 5 years later then SPOUSE would be entitled to 50%, except SPOUSE claimed
+# early - at 32.5%. The actual SPOUSAL benefit amount at 67 is then:
+#    (50 / 32.5) * (PRIMARY at FRA) = 1.54 * (PRIMARY at FRA)
 
 # Import modules
 from argparse import ArgumentParser
@@ -319,6 +337,8 @@ def format_results(results):
     except IndexError:
         pass
     FRA = 70 - yr
+    RBA = results['ReducedBenefitAge']
+    reduc = 100 * results['ReducedBenefit'] / results['NormalBenefit']
     lines = []
     lines.append("Earnings record years analyzed ____________ {}".format(len(results['EarningsRecord'])))
     lines.append("First Earnings Year analyzed ______________ {}".format(min(results['EarningsRecord'])))
@@ -332,32 +352,35 @@ def format_results(results):
     lines.append("Average Indexed Monthly Earnings (AIME) ___{:11.2f}".format(results['AverageIndexedMonthlyEarnings']))
     lines.append("First Bend Point __________________________{:8.0f}".format(results['FirstBendPoint']))
     lines.append("Second Bend Point _________________________{:8.0f}".format(results['SecondBendPoint']))
-    lines.append("Reduced (70%) Monthly Benefit (age 62) ____{:11.2f}".format(results['ReducedBenefit']))
-    rb = results['ReducedBenefit'] * 12.0
+    if RBA < FRA:
+        lines.append("Reduced ({:2.0f}%) Monthly Benefit (age {:.1f}) __{:11.2f}".format(reduc, RBA, results['ReducedBenefit']))
+        rb = results['ReducedBenefit'] * 12.0
+        lines.append("Reduced ({:2.0f}%) Annual Benefit ______________{:11.2f}".format(reduc, rb))
     nb = results['NormalBenefit'] * 12.0
-    lines.append("Reduced (70%) Annual Benefit ______________{:11.2f}".format(rb))
     lines.append("Normal Monthly Benefit (age {}) ___________{:11.2f}".format(FRA, results['NormalBenefit']))
     lines.append("Normal Annual Benefit _____________________{:11.2f}".format(nb))
-    lines.append("Increase over ReducedBenefit ______________{:10.1f}%".format(100 * (nb / rb - 1)))
-    b_cost = (FRA - 62) * rb
-    lines.append("Delay Opportunity Cost from ReducedBenefit {:11.2f}".format(b_cost))
-    recovered = b_cost / (nb - rb)
-    year, month = years2ym(FRA + recovered)
-    lines.append("  Recovered after {:.1f} years, age {} +{} months".format(recovered, year, month))
+    if RBA < FRA:
+        lines.append("Increase over ReducedBenefit ______________{:10.1f}%".format(100 * (nb / rb - 1)))
+        b_cost = (FRA - RBA) * rb
+        lines.append("Delay Opportunity Cost from ReducedBenefit {:11.2f}".format(b_cost))
+        recovered = b_cost / (nb - rb)
+        year, month = years2ym(FRA + recovered)
+        lines.append("  Recovered after {:.1f} years, age {} +{} months".format(recovered, year, month))
     for yr in range(0, yr):
         m_ib = results['IncreasedBenefit'][yr]
         a_ib = m_ib * 12.0
         lines.append("Delaying until FRA+{} (age {}):".format(yr + 1, FRA + yr + 1))
         lines.append("  Increased Monthly Benefit _______________{:11.2f}".format(m_ib))
         lines.append("  Increased Annual Benefit ________________{:11.2f}".format(a_ib))
-        lines.append("  Increase over ReducedBenefit ____________{:10.1f}%".format(100 * (a_ib / rb - 1)))
         lines.append("  Increase over NormalBenefit _____________{:10.1f}%".format(100 * (a_ib / nb - 1)))
-    rb_cost = (70 - 62) * rb
+    if RBA < FRA:
+        lines.append("  Increase over ReducedBenefit ____________{:10.1f}%".format(100 * (a_ib / rb - 1)))
+        rb_cost = (70 - RBA) * rb
+        lines.append("Delay Opportunity Cost from ReducedBenefit {:11.2f}".format(rb_cost))
+        recovered = rb_cost / (a_ib - rb)
+        year, month = years2ym(FRA + recovered)
+        lines.append("  Recovered after {:.1f} years, age {} +{} months".format(recovered, year, month))
     nb_cost = (70 - FRA) * nb
-    lines.append("Delay Opportunity Cost from ReducedBenefit {:11.2f}".format(rb_cost))
-    recovered = rb_cost / (a_ib - rb)
-    year, month = years2ym(FRA + recovered)
-    lines.append("  Recovered after {:.1f} years, age {} +{} months".format(recovered, year, month))
     lines.append("Delay Opportunity Cost from NormalBenefit _{:11.2f}".format(nb_cost))
     recovered = nb_cost / (a_ib - nb)
     year, month = years2ym(FRA + recovered)
@@ -469,7 +492,7 @@ def do_the_big_calculation_method():
     load_xml_statement()
 
     if DoB:
-        first = datetime(DoB.year + COLAage, DoB.month, DoB.day)
+        firstCOLA = datetime(DoB.year + COLAage, DoB.month, DoB.day)
         now = datetime.now()
 
 # The first year with Social Security Earnings
@@ -525,11 +548,11 @@ def do_the_big_calculation_method():
 # Calculate the Social Security "Bend Points" for the Primary Insurance Amount
 # (PIA) as defined by:
 # https://www.ssa.gov/oact/cola/piaformula.html
-    if DoB and now > first:
-        if first.year > NationalAverageWageIndexSeries_LastYear:
+    if DoB and now > firstCOLA:
+        if firstCOLA.year > NationalAverageWageIndexSeries_LastYear:
             NAWISyear = NationalAverageWageIndexSeries_LastYear
         else:
-            NAWISyear = first.year
+            NAWISyear = firstCOLA.year
     else:
         NAWISyear = NationalAverageWageIndexSeries_LastYear
     FirstBendPoint  = round( 180.0 * NationalAverageWageIndexSeries[NAWISyear] / 9779.44)
@@ -553,24 +576,56 @@ def do_the_big_calculation_method():
     NormalMonthlyBenefit = (floor(NormalMonthlyBenefit * 10.0)) / 10.0
 
 # apply COLAs
-    if DoB and now > first:
-        for year in range(first.year + 1, now.year + 1):
+    if DoB and now > firstCOLA:
+        colayears = []
+        for year in range(firstCOLA.year + 1, now.year + 1):
             NormalMonthlyBenefit *= 1 + AnnualCOLA.get(year, 0) / 100
             NormalMonthlyBenefit = (floor(NormalMonthlyBenefit * 10.0)) / 10.0
-            print(f"COLA {year}: {AnnualCOLA.get(year)}")
+            colayears.append((year, AnnualCOLA.get(year)))
+        print(f"Instead of AWI post age {COLAage}, apply COLAs: {colayears}")
 
 # Calculate the reduced monthly benefit. Note that this takes into account the
 # worst case scenario (70%). Depending on your birth date and how early you
 # begin drawing Social Security, this number may be different.
+    # FRA 67 means age 62 reduces by 30%
     ReducedMonthlyBenefit = 0.7 * NormalMonthlyBenefit
+    ReducedBenefitAge = 62
+    if DoB:
+        # calculate monthly increase if already past initial ReducedBenefitAge
+        # rates from motley fool infographic, is there an actual formula???
+        rate1 = 1 + 5 / 12 / 100
+        rate2 = 1 + 5 / 9  / 100
+        # post FRA: rate3 = 1 + 2 / 3  / 100
+        beneMonth = 0
+        # this is a compounding calculation, should it be flat?
+        while True:
+            # check if already waited one month
+            beneMonth += 1
+            addyear = (DoB.month + beneMonth) // 12
+            month = 1 + (DoB.month - 0 + beneMonth) % 12
+            #print(beneMonth, addyear, month)
+            beneAge = datetime(DoB.year + ReducedBenefitAge + addyear, month, DoB.day)
+            #print(now); print(beneAge)
+            if now <= beneAge or addyear >= 5: # FRA
+                # could start now or already FRA
+                beneMonth -= 1
+                break
+            # increase the benefit for the month already waited
+            # for FRA 67 - when to apply each rate from motley fool infographic
+            if beneMonth < 24:
+                # age 62-64
+                ReducedMonthlyBenefit *= rate1
+            else:
+                # age 64-67
+                ReducedMonthlyBenefit *= rate2
+        ReducedBenefitAge += beneMonth / 12
     ReducedMonthlyBenefit = (floor(ReducedMonthlyBenefit * 10.0)) / 10.0
 
 # Calculate the increased benefit from delaying past Full Retirement Age
-# Note this calculates for 5 years, the maximum, but currently the increase
-# ends at age 70. This means someone with an FRA of 67 can only get 3 years
-# of increased benefits. The rest calculated don't apply to that person.
+# Someone with an FRA of 67 can only get 3 years of increased benefits.
     IncreasedBenefit = []
     Benefit = NormalMonthlyBenefit * 12
+    # this is a compounding calculation, should it be flat 1.08/1.16/1.24???
     for yr in range(3):
         Benefit *= 1.08
         MonthlyBenefit = Benefit / 12
@@ -590,6 +645,7 @@ def do_the_big_calculation_method():
         "FirstBendPoint": FirstBendPoint,
         "SecondBendPoint": SecondBendPoint,
         "NormalBenefit": NormalMonthlyBenefit,
+        "ReducedBenefitAge": ReducedBenefitAge,
         "ReducedBenefit": ReducedMonthlyBenefit,
         "IncreasedBenefit": IncreasedBenefit,
     })
